@@ -1,0 +1,295 @@
+# SQL Queries - Employee Satisfaction Analysis
+
+This document contains all SQL queries used to analyze employee satisfaction data and identify key insights for the dashboard.
+
+## Database Schema
+- **Table:** employeesurvey.employees
+- **Records:** 3,025 employees
+- **Key Fields:** JobSatisfaction, Stress, WLB, Dept, JobLevel, haveOT, TrainingHoursPerYear, SleepHours, CommuteMode
+
+---
+
+## Query 1: Distribution of Satisfaction Scores
+
+Shows how many employees fall into each satisfaction level (1-5).
+
+```sql
+SELECT 
+  JobSatisfaction,
+  COUNT(*) as employee_count,
+  ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM employeesurvey.employees), 2) as percentage
+FROM employeesurvey.employees
+GROUP BY JobSatisfaction
+ORDER BY JobSatisfaction;
+```
+
+**Purpose:** Understand overall satisfaction distribution. Result: 58% satisfied (4-5) but 23% dissatisfied (1-2).
+
+---
+
+## Query 2: Satisfaction by Department
+
+Aggregates key metrics (satisfaction, stress, WLB) by department to identify which departments need intervention.
+
+```sql
+SELECT 
+  Dept,
+  COUNT(*) as total_employees,
+  ROUND(AVG(JobSatisfaction), 2) as avg_satisfaction,
+  ROUND(AVG(Stress), 2) as avg_stress,
+  ROUND(AVG(WLB), 2) as avg_wlb
+FROM employeesurvey.employees
+GROUP BY Dept
+ORDER BY avg_satisfaction DESC;
+```
+
+**Purpose:** Identify department performance gaps. Result: Sales leads (3.50), IT lags (3.28). 0.22-point variance shows manageable departmental differences.
+
+---
+
+## Query 3: Key Drivers of Employee Satisfaction
+
+Uses conditional aggregation (CASE WHEN) to test which factors have the strongest impact on satisfaction.
+
+```sql
+SELECT 
+  'Stress' as factor,
+  ROUND(AVG(CASE WHEN Stress <= 2 THEN JobSatisfaction END), 2) as low_factor_satisfaction,
+  ROUND(AVG(CASE WHEN Stress >= 4 THEN JobSatisfaction END), 2) as high_factor_satisfaction
+FROM employeesurvey.employees
+UNION ALL
+SELECT 
+  'Work-Life Balance' as factor,
+  ROUND(AVG(CASE WHEN WLB <= 2 THEN JobSatisfaction END), 2) as low_factor_satisfaction,
+  ROUND(AVG(CASE WHEN WLB >= 4 THEN JobSatisfaction END), 2) as high_factor_satisfaction
+FROM employeesurvey.employees
+UNION ALL
+SELECT 
+  'Workload' as factor,
+  ROUND(AVG(CASE WHEN Workload <= 2 THEN JobSatisfaction END), 2) as low_factor_satisfaction,
+  ROUND(AVG(CASE WHEN Workload >= 4 THEN JobSatisfaction END), 2) as high_factor_satisfaction
+FROM employeesurvey.employees
+UNION ALL
+SELECT 
+  'Sleep Hours' as factor,
+  ROUND(AVG(CASE WHEN SleepHours < 6 THEN JobSatisfaction END), 2) as low_factor_satisfaction,
+  ROUND(AVG(CASE WHEN SleepHours >= 8 THEN JobSatisfaction END), 2) as high_factor_satisfaction
+FROM employeesurvey.employees;
+```
+
+**Purpose:** Identify which factors drive satisfaction most. Result: Work-Life Balance has 2.5-point differential (largest), making it the #1 intervention lever.
+
+---
+
+## Query 4: At-Risk Employees Identification
+
+Defines at-risk employees as those with high stress (>=4) AND low satisfaction (<=2).
+
+```sql
+SELECT 
+  COUNT(*) as at_risk_count,
+  ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM employeesurvey.employees), 2) as percentage,
+  ROUND(AVG(JobSatisfaction), 2) as avg_satisfaction,
+  ROUND(AVG(Stress), 2) as avg_stress,
+  ROUND(AVG(WLB), 2) as avg_wlb
+FROM employeesurvey.employees
+WHERE Stress >= 4 AND JobSatisfaction <= 2;
+```
+
+**Purpose:** Quantify retention risk. Result: 98 employees (3.2%) at-risk of attrition.
+
+---
+
+## Query 5: At-Risk Employees by Department
+
+Drill-down analysis to identify which departments have the highest concentration of at-risk talent.
+
+```sql
+SELECT 
+  Dept,
+  COUNT(*) as at_risk_count,
+  ROUND(AVG(Stress), 2) as avg_stress,
+  ROUND(AVG(JobSatisfaction), 2) as avg_satisfaction
+FROM employeesurvey.employees
+WHERE Stress >= 4 AND JobSatisfaction <= 2
+GROUP BY Dept
+ORDER BY at_risk_count DESC;
+```
+
+**Purpose:** Prioritize department-level interventions. Result: IT (23) and Finance (21) account for 44% of at-risk population.
+
+---
+
+## Query 6: Overtime Impact on Satisfaction
+
+Examines how overtime correlates with satisfaction, stress, WLB, and sleep hours.
+
+```sql
+SELECT 
+  haveOT,
+  COUNT(*) as employee_count,
+  ROUND(AVG(JobSatisfaction), 2) as avg_satisfaction,
+  ROUND(AVG(Stress), 2) as avg_stress,
+  ROUND(AVG(WLB), 2) as avg_wlb,
+  ROUND(AVG(SleepHours), 2) as avg_sleep
+FROM employeesurvey.employees
+GROUP BY haveOT;
+```
+
+**Purpose:** Measure overtime impact on wellbeing. Result: Overtime employees show 0.42-point satisfaction loss and worse WLB (3.00 vs 3.09).
+
+---
+
+## Query 7: Overtime Impact by Department
+
+Shows how overtime affects satisfaction across different departments.
+
+```sql
+SELECT 
+  Dept,
+  haveOT,
+  COUNT(*) as employee_count,
+  ROUND(AVG(JobSatisfaction), 2) as avg_satisfaction
+FROM employeesurvey.employees
+GROUP BY Dept, haveOT
+ORDER BY Dept, haveOT;
+```
+
+**Purpose:** Identify which departments are affected most by overtime. Helps prioritize workload rebalancing efforts.
+
+---
+
+## Query 8: Stress Level Correlation with Satisfaction
+
+Shows the inverse relationship between stress and satisfaction.
+
+```sql
+SELECT 
+  Stress as stress_level,
+  COUNT(*) as employee_count,
+  ROUND(AVG(JobSatisfaction), 2) as avg_satisfaction,
+  ROUND(AVG(WLB), 2) as avg_wlb
+FROM employeesurvey.employees
+GROUP BY Stress
+ORDER BY Stress;
+```
+
+**Purpose:** Visualize stress-satisfaction relationship. Result: Clear downward trend—Stress 1 averages 3.82 satisfaction, Stress 5 averages 1.80.
+
+---
+
+## Query 9: Work-Life Balance Impact on Satisfaction
+
+The strongest satisfaction driver. Shows non-linear relationship.
+
+```sql
+SELECT 
+  WLB as wlb_score,
+  COUNT(*) as employee_count,
+  ROUND(AVG(JobSatisfaction), 2) as avg_satisfaction,
+  ROUND(AVG(Stress), 2) as avg_stress,
+  ROUND(AVG(SleepHours), 2) as avg_sleep
+FROM employeesurvey.employees
+GROUP BY WLB
+ORDER BY WLB DESC;
+```
+
+**Purpose:** Identify primary satisfaction lever. Result: WLB 5 = 4.5 satisfaction, WLB 1 = 2.0 satisfaction (2.5-point differential—largest impact).
+
+---
+
+## Query 10: Job Level Satisfaction Analysis
+
+Identifies which job levels are at risk and their average characteristics.
+
+```sql
+SELECT 
+  JobLevel,
+  COUNT(*) as employee_count,
+  ROUND(AVG(JobSatisfaction), 2) as avg_satisfaction,
+  ROUND(AVG(Age), 1) as avg_age,
+  ROUND(AVG(Experience), 1) as avg_experience
+FROM employeesurvey.employees
+GROUP BY JobLevel
+ORDER BY 
+  CASE JobLevel
+    WHEN 'Intern/Fresher' THEN 1
+    WHEN 'Junior' THEN 2
+    WHEN 'Mid' THEN 3
+    WHEN 'Lead' THEN 4
+    WHEN 'Senior' THEN 5
+  END;
+```
+
+**Purpose:** Identify vulnerable job levels. Result: 41 Senior leaders at-risk (4.68% of Senior cohort—critical retention concern).
+
+---
+
+## Query 11: Commute Impact on Satisfaction
+
+Examines if commute mode and distance affect satisfaction and WLB.
+
+```sql
+SELECT 
+  CommuteMode,
+  COUNT(*) as employee_count,
+  ROUND(AVG(CommuteDistance), 2) as avg_distance_km,
+  ROUND(AVG(JobSatisfaction), 2) as avg_satisfaction,
+  ROUND(AVG(WLB), 2) as avg_wlb
+FROM employeesurvey.employees
+GROUP BY CommuteMode
+ORDER BY avg_satisfaction DESC;
+```
+
+**Purpose:** Secondary analysis on commute impact. Helps identify if remote/flexible options could improve satisfaction.
+
+---
+
+## Query 12: Training Investment Analysis
+
+Examines if training hours correlate with retention potential and satisfaction.
+
+```sql
+SELECT 
+  JobLevel,
+  COUNT(*) as employee_count,
+  ROUND(AVG(TrainingHoursPerYear), 2) as avg_training_hours,
+  MIN(TrainingHoursPerYear) as min_training,
+  MAX(TrainingHoursPerYear) as max_training,
+  ROUND(AVG(JobSatisfaction), 2) as avg_satisfaction
+FROM employeesurvey.employees
+GROUP BY JobLevel
+ORDER BY 
+  CASE JobLevel
+    WHEN 'Intern/Fresher' THEN 1
+    WHEN 'Junior' THEN 2
+    WHEN 'Mid' THEN 3
+    WHEN 'Lead' THEN 4
+    WHEN 'Senior' THEN 5
+  END;
+```
+
+**Purpose:** Measure training investment equity and correlation with satisfaction. Result: Inconsistent investment across levels. Junior staff receive 6% fewer training hours than Senior roles.
+
+---
+
+## SQL Techniques Used
+
+- **CASE WHEN:** Conditional aggregation to segment employees by threshold
+- **UNION ALL:** Combine multiple factor comparisons into single result set
+- **GROUP BY:** Segment data across multiple dimensions (Department, JobLevel, etc.)
+- **ROUND():** Format decimal places for readability
+- **ORDER BY CASE:** Custom sorting (e.g., maintaining job level order instead of alphabetical)
+
+---
+
+## Key Insights from SQL Analysis
+
+1. **Work-Life Balance is the primary lever** (2.5-point satisfaction differential)
+2. **98 employees are at-risk** (Stress >= 4 AND Satisfaction <= 2)
+3. **IT and Finance departments are highest-risk** (23 and 21 at-risk respectively)
+4. **41 Senior/Lead roles at-risk** (critical talent loss exposure)
+5. **Overtime costs 0.42 satisfaction points** (affects 31% of workforce)
+6. **Stress shows inverse relationship** with satisfaction (downward trend from level 1-5)
+
+---
