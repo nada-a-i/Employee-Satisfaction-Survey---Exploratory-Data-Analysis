@@ -9,6 +9,7 @@ This document contains all SQL queries used to analyze employee satisfaction dat
 
 ---
 
+
 ## Query 1: Distribution of Satisfaction Scores
 
 Shows how many employees fall into each satisfaction level (1-5).
